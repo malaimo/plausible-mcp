@@ -5,14 +5,27 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { plausibleApiKey, debugStdio } from "./constants.js";
 import { PlausibleClient } from "./plausible-client.js";
-import { ValidationError } from "./types.js";
-import { debugLog } from "./utils.js";
+import { debugLog, handleToolError } from "./utils.js";
 
-import type { PlausibleQuery } from "./types.js";
+import type { PlausibleQuery, PlausibleApiResponse } from "./types.js";
 
-// Check for required API key
 if (plausibleApiKey === undefined || plausibleApiKey === "") {
   throw new Error("PLAUSIBLE_API_KEY environment variable is required");
+}
+
+type ToolSuccess = {
+  content: Array<{ type: "text"; text: string }>;
+};
+
+function toolSuccess(result: PlausibleApiResponse): ToolSuccess {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify(result, null, 2),
+      },
+    ],
+  };
 }
 
 async function main(): Promise<void> {
@@ -30,69 +43,96 @@ async function main(): Promise<void> {
 
   const client = new PlausibleClient();
 
-  // Register the plausible_query tool
-  server.tool("plausible_query", "Query analytics data from Plausible Analytics", client.getSchema(), async (args: unknown) => {
-    debugLog("TOOL", "plausible_query called", args);
-    
-    try {
-      const params = args as PlausibleQuery;
-      const result = await client.query(params);
-      
-      debugLog("TOOL", "Query successful", {
-        resultsCount: result.results.length,
-        hasMetadata: Boolean(result.meta)
-      });
-      
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      debugLog("ERROR", "Query failed", error);
-      
-      if (error instanceof ValidationError) {
-        const errorMessage = error.details !== undefined && error.details !== ''
-          ? `${error.message}\n\nDetails: ${error.details}`
-          : error.message;
-          
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Validation Error: ${errorMessage}`,
-            },
-          ],
-          isError: true,
-        };
+  server.registerTool(
+    "plausible_query",
+    {
+      description: "Full-featured Plausible query with filters, dimensions, ordering and pagination",
+      inputSchema: client.getSchema(),
+    },
+    async (args: unknown) => {
+      debugLog("TOOL", "plausible_query called", args);
+      try {
+        const result = await client.query(args as PlausibleQuery);
+        debugLog("TOOL", "plausible_query successful", {
+          resultsCount: result.results.length,
+          hasMetadata: Boolean(result.meta)
+        });
+        return toolSuccess(result);
+      } catch (error) {
+        return handleToolError(error);
       }
-      
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error: ${errorMessage}`,
-          },
-        ],
-        isError: true,
-      };
     }
-  });
+  );
+
+  server.registerTool(
+    "plausible_aggregate",
+    {
+      description: "Get simple aggregate stats without dimensions",
+      inputSchema: client.getAggregateSchema(),
+    },
+    async (args: unknown) => {
+      debugLog("TOOL", "plausible_aggregate called", args);
+      try {
+        const result = await client.aggregate(args as Parameters<typeof client.aggregate>[0]);
+        debugLog("TOOL", "plausible_aggregate successful", {
+          resultsCount: result.results.length
+        });
+        return toolSuccess(result);
+      } catch (error) {
+        return handleToolError(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "plausible_breakdown",
+    {
+      description: "Get stats broken down by one or more dimensions",
+      inputSchema: client.getBreakdownSchema(),
+    },
+    async (args: unknown) => {
+      debugLog("TOOL", "plausible_breakdown called", args);
+      try {
+        const result = await client.breakdown(args as Parameters<typeof client.breakdown>[0]);
+        debugLog("TOOL", "plausible_breakdown successful", {
+          resultsCount: result.results.length
+        });
+        return toolSuccess(result);
+      } catch (error) {
+        return handleToolError(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "plausible_timeseries",
+    {
+      description: "Get time-based data for charting (interval: time, time:hour, time:day, time:week, time:month)",
+      inputSchema: client.getTimeseriesSchema(),
+    },
+    async (args: unknown) => {
+      debugLog("TOOL", "plausible_timeseries called", args);
+      try {
+        const result = await client.timeseries(args as Parameters<typeof client.timeseries>[0]);
+        debugLog("TOOL", "plausible_timeseries successful", {
+          resultsCount: result.results.length
+        });
+        return toolSuccess(result);
+      } catch (error) {
+        return handleToolError(error);
+      }
+    }
+  );
 
   if (debugStdio) {
     debugLog("LIFECYCLE", "Debug mode enabled");
   }
 
-  // Start the server
   const transport = new StdioServerTransport();
-  
+
   debugLog("TRANSPORT", "Starting stdio transport");
   await server.connect(transport);
-  
+
   console.error("Plausible MCP Server running on stdio");
 }
 
