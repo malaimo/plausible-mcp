@@ -5,7 +5,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "./build",
-    "rootDir": "./",
+    "rootDir": "./src",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowJs": true,

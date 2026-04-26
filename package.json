@@ -6,14 +6,14 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc && chmod 755 build/src/index.js",
+    "build": "tsc && chmod 755 build/index.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "inspect": "node --inspect ./build/index.js",
-    "client": "node build/src/client.js build/src/index.js alexop.dev",
-    "client:log": "DEBUG_STDIO=true node build/src/client.js build/src/index.js alexop.dev",
-    "client:nolog": "DEBUG= node build/src/client.js build/src/index.js alexop.dev"
+    "client": "node build/client.js build/index.js alexop.dev",
+    "client:log": "DEBUG_STDIO=true node build/client.js build/index.js alexop.dev",
+    "client:nolog": "DEBUG= node build/client.js build/index.js alexop.dev"
   },
   "keywords": [
     "mcp",
@@ -39,7 +39,7 @@
     "typescript-eslint": "^8.38.0"
   },
   "bin": {
-    "mcp-plausible": "./build/src/index.js"
+    "mcp-plausible": "./build/index.js"
   },
   "files": [
     "build"
